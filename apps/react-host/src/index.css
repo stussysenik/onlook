@@ -1,0 +1,163 @@
+:root {
+  color: #0f1720;
+  background:
+    radial-gradient(circle at top left, rgba(255, 162, 67, 0.28), transparent 24%),
+    radial-gradient(circle at bottom right, rgba(21, 120, 110, 0.24), transparent 28%),
+    #f4efe5;
+  font-family: "IBM Plex Sans", "Avenir Next", sans-serif;
+  line-height: 1.5;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+}
+
+button {
+  font: inherit;
+}
+
+.frame {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: 320px minmax(0, 1fr);
+}
+
+.sidebar {
+  padding: 2rem 1.5rem;
+  background: rgba(15, 23, 32, 0.96);
+  color: #f7f2eb;
+}
+
+.eyebrow {
+  margin: 0 0 0.4rem;
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  color: rgba(247, 242, 235, 0.64);
+}
+
+.sidebar h1,
+.hero h2,
+.board-card h3,
+.side-card h2 {
+  margin: 0;
+  font-family: "Space Grotesk", "IBM Plex Sans", sans-serif;
+}
+
+.lede {
+  margin: 0.75rem 0 0;
+  max-width: 46ch;
+}
+
+.panel-list {
+  display: grid;
+  gap: 1rem;
+  margin-top: 1.5rem;
+}
+
+.side-card {
+  border-radius: 1.1rem;
+  padding: 1rem;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.canvas {
+  padding: 2rem;
+}
+
+.hero {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 1.5rem;
+}
+
+.primary-action,
+.secondary-action {
+  border: 0;
+  border-radius: 999px;
+  padding: 0.8rem 1.1rem;
+  cursor: pointer;
+}
+
+.primary-action {
+  background: #10685d;
+  color: white;
+}
+
+.secondary-action {
+  background: rgba(15, 23, 32, 0.08);
+  color: #0f1720;
+}
+
+.metrics,
+.board {
+  display: grid;
+  gap: 1rem;
+}
+
+.metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 1rem;
+}
+
+.metric-card,
+.board-card {
+  border-radius: 1.35rem;
+  padding: 1.2rem;
+  background: rgba(255, 255, 255, 0.82);
+  border: 1px solid rgba(15, 23, 32, 0.08);
+  box-shadow: 0 24px 60px rgba(15, 23, 32, 0.08);
+}
+
+.metric-label,
+.badge {
+  display: inline-flex;
+  padding: 0.18rem 0.55rem;
+  border-radius: 999px;
+  background: rgba(16, 104, 93, 0.12);
+  color: #10685d;
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.metric-card strong {
+  display: block;
+  margin-top: 0.65rem;
+  font-size: 2rem;
+}
+
+.board {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.accent-card {
+  background: linear-gradient(135deg, rgba(16, 104, 93, 0.92), rgba(8, 60, 54, 0.96));
+  color: #f8f4ec;
+}
+
+.accent-card .badge {
+  background: rgba(255, 255, 255, 0.18);
+  color: #f8f4ec;
+}
+
+@media (max-width: 980px) {
+  .frame {
+    grid-template-columns: 1fr;
+  }
+
+  .metrics,
+  .board {
+    grid-template-columns: 1fr;
+  }
+
+  .hero {
+    flex-direction: column;
+  }
+}

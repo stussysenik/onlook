@@ -1,0 +1,14 @@
+node_modules
+.DS_Store
+dist
+coverage
+.vite
+*.tsbuildinfo
+apps/backend/_build
+apps/backend/deps
+apps/backend/.elixir_ls
+apps/backend/erl_crash.dump
+apps/backend/.sqlite3
+apps/backend/*.sqlite3
+apps/backend/*.sqlite3-shm
+apps/backend/*.sqlite3-wal

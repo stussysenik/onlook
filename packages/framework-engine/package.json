@@ -1,0 +1,31 @@
+{
+  "name": "@onlook-next/framework-engine",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "bun run build:wasm && tsc -p tsconfig.json --noEmit",
+    "build:wasm": "node ./scripts/build-zig-wasm.mjs",
+    "benchmark:accelerator": "bun run build:wasm && node ./scripts/benchmark-line-index.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@babel/generator": "^7.28.3",
+    "@babel/parser": "^7.28.4",
+    "@babel/traverse": "^7.28.4",
+    "@babel/types": "^7.28.4",
+    "@onlook-next/editor-contracts": "workspace:*",
+    "svelte": "^5.38.7"
+  },
+  "devDependencies": {
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.28.0",
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "onlook-next",
+  "private": true,
+  "packageManager": "bun@1.3.9",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:studio": "bun --filter studio dev",
+    "dev:react-host": "bun --filter react-host dev",
+    "dev:editor": "bun --filter editor dev",
+    "dev:backend": "cd apps/backend && mix phx.server",
+    "dev": "bun run dev:studio",
+    "build": "bun --filter '*' build",
+    "test": "bun --filter '*' test",
+    "typecheck": "bun --filter '*' typecheck"
+  }
+}

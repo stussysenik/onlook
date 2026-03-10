@@ -1,0 +1,20 @@
+{
+  "name": "@onlook-next/zig-overlay-core",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "bun run build:wasm && tsc -p tsconfig.json --noEmit",
+    "build:wasm": "node ./scripts/build-zig-wasm.mjs",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^24.5.2",
+    "typescript": "^5.9.2",
+    "vitest": "^3.2.4"
+  }
+}

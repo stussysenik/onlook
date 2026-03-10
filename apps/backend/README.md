@@ -1,33 +1,18 @@
-## Why a backend stack?
+# OnlookBackend
 
-This is our server stack built in Supabase which you can also run locally or
-self-host.
+To start your Phoenix server:
 
-Used to enable online capabilities such as managing users, collaborating,
-persisting data, etc.
+* Run `mix setup` to install and setup dependencies
+* Start Phoenix endpoint with `mix phx.server` or inside IEx with `iex -S mix phx.server`
 
-We will offer this as a hosted instance at some point. Ideally, the product
-should still work offline with no backend connection.
+Now you can visit [`localhost:4000`](http://localhost:4000) from your browser.
 
-## Usage
+Ready to run in production? Please [check our deployment guides](https://hexdocs.pm/phoenix/deployment.html).
 
-### Running locally
+## Learn more
 
-1. Make sure you have [Docker] installed
-2. Install necessary packages
-
-```bash
-bun install
-```
-
-3. Run the supabase instance locally
-
-```bash
-bun run start
-```
-
-4. Set up the latest snapshot of the database
-
-```bash
-bun run reset
-```
+* Official website: https://www.phoenixframework.org/
+* Guides: https://hexdocs.pm/phoenix/overview.html
+* Docs: https://hexdocs.pm/phoenix
+* Forum: https://elixirforum.com/c/phoenix-forum
+* Source: https://github.com/phoenixframework/phoenix

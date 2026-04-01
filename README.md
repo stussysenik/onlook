@@ -1,5 +1,8 @@
 # Onlook Next
 
+![Demo](demo.gif)
+
+
 Svelte-first visual editing core inspired by Onlook, implemented as a Bun workspace plus a Phoenix backend.
 
 ## Intention

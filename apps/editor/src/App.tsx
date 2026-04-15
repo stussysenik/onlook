@@ -1,7 +1,19 @@
-import { createElement as createReactElement, startTransition, useEffect, useState } from 'react';
+import { createElement as createReactElement, startTransition, useEffect, useRef, useState } from 'react';
 
 import type { EditorDocument, EditorNode, FrameworkId } from '@onlook-next/editor-contracts';
 import { loadFrameworkEngine } from './engine';
+import { FileTree } from './FileTree';
+import {
+  getAdapter,
+  inferFrameworkFromPath,
+  isDesktop as detectDesktop,
+  type Adapter,
+  type FileEntry,
+  type PreviewBounds,
+  type ProjectHandle,
+} from './runtime/adapter';
+import { EVENTS, subscribe, type PreviewSelection } from './runtime/events';
+import { StatusBanner } from './StatusBanner';
 
 const FRAMEWORKS: Array<{ id: FrameworkId; label: string; disabled?: boolean }> = [
   { id: 'svelte', label: 'Svelte' },
@@ -76,10 +88,186 @@ export default function App() {
   const [insertText, setInsertText] = useState('New element');
   const [draftText, setDraftText] = useState('');
   const [draftClassName, setDraftClassName] = useState('');
+  const [adapter, setAdapter] = useState<Adapter | null>(null);
+  const [desktopProject, setDesktopProject] = useState<ProjectHandle | null>(null);
+  const [desktopDevUrl, setDesktopDevUrl] = useState<string | null>(null);
+  const [desktopBlocked, setDesktopBlocked] = useState(false);
+  const [previewSelection, setPreviewSelection] = useState<PreviewSelection | null>(null);
+  const [fileEntries, setFileEntries] = useState<FileEntry[]>([]);
+  const [fileTreeTruncated, setFileTreeTruncated] = useState(false);
+  const [selectedFilePath, setSelectedFilePath] = useState<string | null>(null);
+  const desktopPreviewSlotRef = useRef<HTMLDivElement | null>(null);
+  const isDesktopMode = detectDesktop();
+  const selectedFileRelative =
+    selectedFilePath && desktopProject
+      ? relativizeAgainst(desktopProject.root, selectedFilePath)
+      : null;
 
   useEffect(() => {
     void reparseSource(source, framework);
   }, []);
+
+  useEffect(() => {
+    // Resolve the adapter once per session. In browser mode this is a cheap
+    // synchronous shim; in desktop mode it dynamic-imports `@tauri-apps/api`.
+    let cancelled = false;
+    void (async () => {
+      const next = await getAdapter();
+      if (!cancelled) setAdapter(next);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    // Preview selection events from the probe script — we do not yet map
+    // them to source positions, but surfacing the payload is enough for
+    // v1 to prove the round trip is alive.
+    if (!isDesktopMode) return;
+    const unsubs: Array<Promise<() => void>> = [
+      subscribe<PreviewSelection>(EVENTS.previewClick, (payload) => {
+        setPreviewSelection(payload);
+      }),
+    ];
+    return () => {
+      unsubs.forEach((promise) => promise.then((fn) => fn()).catch(() => undefined));
+    };
+  }, [isDesktopMode]);
+
+  useEffect(() => {
+    // Keep the Rust preview child webview positioned over our slot. The slot
+    // is an empty, sized <div> in the preview panel; whenever it resizes we
+    // post the new logical-pixel bounds to Rust via the adapter.
+    if (!isDesktopMode || !adapter || !desktopDevUrl) return;
+    const slot = desktopPreviewSlotRef.current;
+    if (!slot) return;
+
+    const report = () => {
+      const rect = slot.getBoundingClientRect();
+      const bounds: PreviewBounds = {
+        x: rect.x,
+        y: rect.y,
+        width: rect.width,
+        height: rect.height,
+      };
+      void adapter.setPreviewBounds(bounds);
+    };
+
+    report();
+    const observer = new ResizeObserver(report);
+    observer.observe(slot);
+    window.addEventListener('resize', report);
+    window.addEventListener('scroll', report, true);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('resize', report);
+      window.removeEventListener('scroll', report, true);
+    };
+  }, [isDesktopMode, adapter, desktopDevUrl]);
+
+  useEffect(() => {
+    // First time we see a dev-server URL for the current project, ask Rust to
+    // scan the project's files. Re-running the scan on every URL change is
+    // wasted work because HMR reloads don't rename files — we only want one
+    // scan per `project_open` session.
+    if (!isDesktopMode || !adapter || adapter.mode !== 'desktop') return;
+    if (!desktopDevUrl) return;
+    if (fileEntries.length > 0) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const result = await adapter.listFiles();
+        if (cancelled) return;
+        setFileEntries(result.entries);
+        setFileTreeTruncated(result.truncated);
+      } catch (error) {
+        if (cancelled) return;
+        const message = error instanceof Error ? error.message : 'Failed to list files';
+        setSyncStatus(`Desktop: ${message}`);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [isDesktopMode, adapter, desktopDevUrl, fileEntries.length]);
+
+  async function handleDesktopOpenProject() {
+    if (!adapter || adapter.mode !== 'desktop') return;
+    const handle = await adapter.openProject();
+    if (!handle) return;
+    setDesktopProject(handle);
+    setDesktopDevUrl(null);
+    setDesktopBlocked(false);
+    setFileEntries([]);
+    setFileTreeTruncated(false);
+    setSelectedFilePath(null);
+    try {
+      await adapter.startDevServer(handle);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start dev server';
+      setSyncStatus(`Desktop: ${message}`);
+      setDesktopBlocked(true);
+    }
+  }
+
+  async function handleSelectFile(path: string, nextFramework: FrameworkId) {
+    if (!adapter || adapter.mode !== 'desktop') return;
+    try {
+      const nextDocument = await adapter.parseFile(path, nextFramework);
+      startTransition(() => {
+        setDocument(nextDocument);
+        setSource(nextDocument.source);
+        setFramework(nextFramework);
+        setSelectedNodeId(nextDocument.root.children[0]?.id ?? 'root');
+        setSelectedFilePath(path);
+        setParseError(null);
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to parse file';
+      setParseError(message);
+      setDocument(null);
+      setSelectedFilePath(path);
+    }
+  }
+
+  async function persistDocumentIfDesktop(nextDocument: EditorDocument) {
+    if (!isDesktopMode || !selectedFilePath || !adapter || adapter.mode !== 'desktop') return;
+    try {
+      await adapter.writeFile(selectedFilePath, nextDocument.source);
+      const relative = desktopProject
+        ? relativizeAgainst(desktopProject.root, selectedFilePath)
+        : selectedFilePath;
+      setSyncStatus(`Saved ${relative}`);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to save file';
+      setSyncStatus(`Save failed: ${message}`);
+    }
+  }
+
+  async function handleDesktopDevServerReady(url: string) {
+    setDesktopDevUrl(url);
+    if (adapter?.mode === 'desktop') {
+      try {
+        await adapter.attachPreview(url);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Failed to attach preview';
+        setSyncStatus(`Desktop: ${message}`);
+      }
+    }
+  }
+
+  async function handleDesktopCloseProject() {
+    if (!adapter || adapter.mode !== 'desktop') return;
+    await adapter.closeProject();
+    setDesktopProject(null);
+    setDesktopDevUrl(null);
+    setDesktopBlocked(false);
+    setPreviewSelection(null);
+    setFileEntries([]);
+    setFileTreeTruncated(false);
+    setSelectedFilePath(null);
+  }
 
   const selectedNode = document ? findNode(document.root, selectedNodeId) : undefined;
   const selectedParent = document && selectedNodeId !== 'root' ? findParent(document.root, selectedNodeId) : undefined;
@@ -138,10 +326,14 @@ export default function App() {
       return;
     }
 
-    const engine = await loadFrameworkEngine();
+    // Route through the adapter so desktop mode can forward edits to the
+    // sidecar later, once a file-tree selection makes this meaningful. In
+    // browser mode the adapter's `emitEdit` just delegates to the in-process
+    // `framework-engine`, so behavior is unchanged.
+    const ed = await getAdapter();
     let nextDocument = document;
     if (draftText !== selectedNode.textContent && (selectedNode.kind === 'text' || selectedNode.children.some((child) => child.kind === 'text'))) {
-      nextDocument = engine.applyEdit(nextDocument, {
+      nextDocument = await ed.emitEdit(nextDocument, {
         type: 'update_text',
         nodeId: selectedNode.id,
         text: draftText,
@@ -149,7 +341,7 @@ export default function App() {
     }
 
     if (draftClassName !== (selectedNode.attributes.class ?? selectedNode.attributes.className ?? '')) {
-      nextDocument = engine.applyEdit(nextDocument, {
+      nextDocument = await ed.emitEdit(nextDocument, {
         type: 'update_styles',
         nodeId: selectedNode.id,
         className: draftClassName,
@@ -157,6 +349,7 @@ export default function App() {
     }
 
     updateDocument(nextDocument);
+    await persistDocumentIfDesktop(nextDocument);
   }
 
   async function insertChildNode() {
@@ -164,8 +357,8 @@ export default function App() {
       return;
     }
 
-    const engine = await loadFrameworkEngine();
-    const nextDocument = engine.applyEdit(document, {
+    const ed = await getAdapter();
+    const nextDocument = await ed.emitEdit(document, {
       type: 'insert_node',
       parentId: selectedNode.id,
       node: {
@@ -176,6 +369,7 @@ export default function App() {
     });
 
     updateDocument(nextDocument);
+    await persistDocumentIfDesktop(nextDocument);
   }
 
   async function removeSelectedNode() {
@@ -184,14 +378,15 @@ export default function App() {
     }
 
     const fallbackSelection = selectedParent?.id ?? 'root';
-    const engine = await loadFrameworkEngine();
-    const nextDocument = engine.applyEdit(document, {
+    const ed = await getAdapter();
+    const nextDocument = await ed.emitEdit(document, {
       type: 'remove_node',
       nodeId: selectedNode.id,
     });
 
     updateDocument(nextDocument);
     setSelectedNodeId(fallbackSelection);
+    await persistDocumentIfDesktop(nextDocument);
   }
 
   async function moveSelectedNode(direction: -1 | 1) {
@@ -209,8 +404,8 @@ export default function App() {
       return;
     }
 
-    const engine = await loadFrameworkEngine();
-    const nextDocument = engine.applyEdit(document, {
+    const ed = await getAdapter();
+    const nextDocument = await ed.emitEdit(document, {
       type: 'move_node',
       nodeId: selectedNode.id,
       targetParentId: selectedParent.id,
@@ -218,6 +413,7 @@ export default function App() {
     });
 
     updateDocument(nextDocument);
+    await persistDocumentIfDesktop(nextDocument);
   }
 
   async function createBackendProject() {
@@ -301,50 +497,128 @@ export default function App() {
 
   return (
     <div className="shell">
+      {isDesktopMode ? (
+        <StatusBanner onReady={(url) => void handleDesktopDevServerReady(url)} onBlocked={setDesktopBlocked} />
+      ) : null}
       <header className="topbar">
         <div>
-          <p className="eyebrow">Onlook Next</p>
-          <h1>Multi-framework visual editing core</h1>
+          <p className="eyebrow">Onlook Next{isDesktopMode ? ' · Desktop' : ''}</p>
+          <h1>
+            {isDesktopMode && desktopProject
+              ? desktopProject.name
+              : 'Multi-framework visual editing core'}
+          </h1>
         </div>
         <div className="controls">
-          {FRAMEWORKS.map((option) => (
-            <button
-              key={option.id}
-              className={framework === option.id ? 'pill pill-active' : 'pill'}
-              disabled={option.disabled}
-              onClick={() => handleFrameworkChange(option.id)}
-              type="button"
-            >
-              {option.label}
-            </button>
-          ))}
+          {isDesktopMode ? (
+            desktopProject ? (
+              <button
+                className="pill pill-active"
+                onClick={() => void handleDesktopCloseProject()}
+                type="button"
+              >
+                Close project
+              </button>
+            ) : (
+              <button
+                className="pill pill-active"
+                onClick={() => void handleDesktopOpenProject()}
+                type="button"
+              >
+                Open folder…
+              </button>
+            )
+          ) : (
+            FRAMEWORKS.map((option) => (
+              <button
+                key={option.id}
+                className={framework === option.id ? 'pill pill-active' : 'pill'}
+                disabled={option.disabled}
+                onClick={() => handleFrameworkChange(option.id)}
+                type="button"
+              >
+                {option.label}
+              </button>
+            ))
+          )}
         </div>
       </header>
 
       <main className="grid">
-        <section className="panel source-panel">
-          <div className="panel-header">
-            <div>
-              <h2>Source</h2>
-              <p>Editable source stays in sync with document actions.</p>
+        {isDesktopMode ? (
+          <section className="panel source-panel">
+            <div className="panel-header">
+              <div>
+                <h2>Files</h2>
+                <p>
+                  {desktopProject
+                    ? 'Click a .svelte / .jsx / .tsx file to load it.'
+                    : 'Open a project folder to browse its source files.'}
+                </p>
+              </div>
+              {selectedFileRelative ? (
+                <span className="file-path-indicator" title={selectedFilePath ?? undefined}>
+                  {selectedFileRelative}
+                </span>
+              ) : null}
             </div>
-            <button className="secondary-button" onClick={() => void reparseSource(source, framework)} type="button">
-              Reload document
-            </button>
-          </div>
-          <textarea className="source-editor" onChange={(event) => setSource(event.target.value)} spellCheck={false} value={source} />
-          {parseError ? <p className="error-text">{parseError}</p> : null}
-          {document?.warnings.length ? (
-            <div className="warning-box">
-              <strong>Adapter warnings</strong>
-              <ul>
-                {document.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
-                ))}
-              </ul>
+            {desktopProject ? (
+              <FileTree
+                entries={fileEntries}
+                truncated={fileTreeTruncated}
+                selectedFilePath={selectedFilePath}
+                onSelect={(path, nextFramework) => void handleSelectFile(path, nextFramework)}
+              />
+            ) : (
+              <p className="empty-state">No project loaded.</p>
+            )}
+            {selectedFilePath ? (
+              <textarea
+                className="source-editor"
+                onChange={() => undefined}
+                spellCheck={false}
+                value={source}
+                readOnly
+                aria-label="Read-only source of the selected file"
+              />
+            ) : null}
+            {parseError ? <p className="error-text">{parseError}</p> : null}
+            {document?.warnings.length ? (
+              <div className="warning-box">
+                <strong>Adapter warnings</strong>
+                <ul>
+                  {document.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        ) : (
+          <section className="panel source-panel">
+            <div className="panel-header">
+              <div>
+                <h2>Source</h2>
+                <p>Editable source stays in sync with document actions.</p>
+              </div>
+              <button className="secondary-button" onClick={() => void reparseSource(source, framework)} type="button">
+                Reload document
+              </button>
             </div>
-          ) : null}
-        </section>
+            <textarea className="source-editor" onChange={(event) => setSource(event.target.value)} spellCheck={false} value={source} />
+            {parseError ? <p className="error-text">{parseError}</p> : null}
+            {document?.warnings.length ? (
+              <div className="warning-box">
+                <strong>Adapter warnings</strong>
+                <ul>
+                  {document.warnings.map((warning) => (
+                    <li key={warning}>{warning}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </section>
+        )}
 
         <section className="panel tree-panel">
           <div className="panel-header">
@@ -364,18 +638,50 @@ export default function App() {
           <div className="panel-header">
             <div>
               <h2>Preview</h2>
-              <p>Selection in the preview maps back to the source-aware document.</p>
+              <p>
+                {isDesktopMode
+                  ? desktopDevUrl
+                    ? 'Live dev-server preview. Click any element to inspect it.'
+                    : 'Open a project folder to load a live preview.'
+                  : 'Selection in the preview maps back to the source-aware document.'}
+              </p>
             </div>
           </div>
-          <div className="preview-surface">
-            {document ? (
-              document.root.children.map((node) => (
-                <PreviewNode key={node.id} node={node} selectedNodeId={selectedNodeId} setSelectedNodeId={setSelectedNodeId} />
-              ))
-            ) : (
-              <p className="empty-state">No parsed document available.</p>
-            )}
-          </div>
+          {isDesktopMode ? (
+            <div
+              className="preview-surface desktop-preview-slot"
+              data-desktop-preview-slot
+              ref={desktopPreviewSlotRef}
+              aria-label="Dev-server preview"
+            >
+              {desktopDevUrl ? (
+                <p className="empty-state" style={{ opacity: 0.4 }}>
+                  Preview attached · {desktopDevUrl}
+                </p>
+              ) : (
+                <p className="empty-state">
+                  {desktopProject ? 'Waiting for dev server…' : 'No project loaded.'}
+                </p>
+              )}
+            </div>
+          ) : (
+            <div className="preview-surface">
+              {document ? (
+                document.root.children.map((node) => (
+                  <PreviewNode key={node.id} node={node} selectedNodeId={selectedNodeId} setSelectedNodeId={setSelectedNodeId} />
+                ))
+              ) : (
+                <p className="empty-state">No parsed document available.</p>
+              )}
+            </div>
+          )}
+          {isDesktopMode && previewSelection ? (
+            <div className="preview-selection-meta">
+              <strong>Selected in preview:</strong>
+              <code>{previewSelection.path || previewSelection.tag}</code>
+              {previewSelection.text ? <span className="preview-selection-text">{previewSelection.text}</span> : null}
+            </div>
+          ) : null}
         </section>
 
         <section className="panel inspector-panel">
@@ -625,4 +931,14 @@ function handleSelectableKeyDown(
   event.preventDefault();
   event.stopPropagation();
   setSelectedNodeId(nodeId);
+}
+
+function relativizeAgainst(root: string, absolute: string): string {
+  // Lightweight relative-path helper. The Rust scan already returns a
+  // `relative` field for tree entries, but the file-path indicator needs to
+  // relativize the `selectedFilePath` separately because it is stored as an
+  // absolute path (which is also what `writeFile` needs).
+  if (!absolute.startsWith(root)) return absolute;
+  const rest = absolute.slice(root.length);
+  return rest.startsWith('/') ? rest.slice(1) : rest;
 }

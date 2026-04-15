@@ -4,6 +4,8 @@ dist
 coverage
 .vite
 *.tsbuildinfo
+apps/desktop/src-tauri/target
+apps/desktop/src-tauri/gen/schemas
 apps/backend/_build
 apps/backend/deps
 apps/backend/.elixir_ls

@@ -275,3 +275,186 @@ button {
     grid-template-columns: 1fr;
   }
 }
+
+/* Desktop-shell surfaces -------------------------------------------------- */
+
+.status-banner {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  padding: 0.5rem 0.9rem;
+  margin-bottom: 1rem;
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+  font-family: "IBM Plex Mono", "JetBrains Mono", ui-monospace, monospace;
+  border: 1px solid rgba(17, 35, 28, 0.08);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(6px);
+}
+
+.status-banner.status-ready {
+  background: rgba(196, 231, 211, 0.55);
+  border-color: rgba(49, 135, 94, 0.25);
+  color: #0e3a25;
+}
+
+.status-banner.status-idle {
+  background: rgba(255, 255, 255, 0.5);
+  color: rgba(17, 35, 28, 0.7);
+}
+
+.status-banner.status-error {
+  background: rgba(255, 217, 207, 0.65);
+  border-color: rgba(189, 71, 41, 0.3);
+  color: #552215;
+}
+
+.status-banner-message {
+  flex: 1 1 auto;
+  font-weight: 500;
+}
+
+.status-banner-toggle {
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.35rem;
+  font-size: 0.75rem;
+}
+
+.status-banner-details {
+  flex: 1 0 100%;
+  margin: 0.5rem 0 0;
+  padding: 0.6rem 0.75rem;
+  border-radius: 0.4rem;
+  background: rgba(0, 0, 0, 0.04);
+  max-height: 220px;
+  overflow: auto;
+  white-space: pre-wrap;
+  font-size: 0.75rem;
+  line-height: 1.4;
+}
+
+.desktop-preview-slot {
+  min-height: 420px;
+  border: 1px dashed rgba(17, 35, 28, 0.2);
+  background:
+    repeating-linear-gradient(
+      45deg,
+      rgba(17, 35, 28, 0.02) 0px,
+      rgba(17, 35, 28, 0.02) 10px,
+      transparent 10px,
+      transparent 20px
+    );
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+}
+
+.preview-selection-meta {
+  margin-top: 0.75rem;
+  padding: 0.55rem 0.75rem;
+  border-radius: 0.5rem;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(17, 35, 28, 0.1);
+  font-size: 0.8rem;
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+}
+
+.preview-selection-meta code {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  background: rgba(17, 35, 28, 0.06);
+  padding: 0.15rem 0.4rem;
+  border-radius: 0.3rem;
+}
+
+.preview-selection-text {
+  color: rgba(17, 35, 28, 0.7);
+  font-style: italic;
+}
+
+.file-tree {
+  display: flex;
+  flex-direction: column;
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.82rem;
+  line-height: 1.45;
+  color: rgba(17, 35, 28, 0.86);
+  overflow-y: auto;
+  max-height: 100%;
+}
+
+.file-tree-warning {
+  margin: 0 0 0.6rem 0;
+  font-family: "Inter", system-ui, sans-serif;
+}
+
+.file-tree-dir {
+  display: flex;
+  flex-direction: column;
+}
+
+.file-tree-entry {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding-block: 0.18rem;
+  padding-inline-end: 0.6rem;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: default;
+  border-radius: 0.35rem;
+}
+
+.file-tree-entry-file {
+  cursor: pointer;
+}
+
+.file-tree-entry-editable:hover {
+  background: rgba(17, 35, 28, 0.06);
+}
+
+.file-tree-entry-disabled {
+  color: rgba(17, 35, 28, 0.4);
+  cursor: not-allowed;
+}
+
+.file-tree-entry-active {
+  background: rgba(218, 160, 90, 0.22);
+  color: #11231c;
+}
+
+.file-tree-chevron {
+  font-size: 0.7rem;
+  color: rgba(17, 35, 28, 0.55);
+  width: 0.9rem;
+  display: inline-block;
+}
+
+.file-tree-label {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.file-path-indicator {
+  font-family: "IBM Plex Mono", ui-monospace, monospace;
+  font-size: 0.72rem;
+  color: rgba(17, 35, 28, 0.6);
+  background: rgba(17, 35, 28, 0.06);
+  padding: 0.15rem 0.45rem;
+  border-radius: 0.3rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 100%;
+}

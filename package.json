@@ -9,7 +9,9 @@
   "scripts": {
     "dev:editor": "bun --filter editor dev",
     "dev:backend": "cd apps/backend && mix phx.server",
+    "dev:desktop": "bun --filter desktop tauri dev",
     "dev": "bun run dev:editor",
+    "desktop:build": "bun --filter desktop tauri build",
     "build": "bun --filter '*' build",
     "test": "bun --filter '*' test",
     "typecheck": "bun --filter '*' typecheck"

@@ -46,6 +46,8 @@ export interface EditorDocument {
   warnings: string[];
 }
 
+export type * from './sidecar';
+
 export type EditAction =
   | {
       type: 'update_text';
